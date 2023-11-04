@@ -1,0 +1,119 @@
+
+
+# Цей код демонструє, як розкласти число на прості множники за допомогою алгоритму Шора
+# Використовуючи квантовий комп'ютер Qiskit
+
+# Імпортуємо необхідні бібліотеки
+import math
+import numpy as np
+from qiskit import QuantumCircuit, Aer, execute
+from qiskit.visualization import plot_histogram
+
+# Функція для знаходження найбільшого спільного дільника двох чисел
+def gcd(a, b):
+    if a == 0:
+        return b
+    return gcd(b % a, a)
+
+# Функція для обчислення періоду функції f(x) = a^x mod N за допомогою квантового алгоритму Фур'є
+def quantum_period_finding(a, N):
+    # Визначаємо кількість кубітів для регістрів x та y
+    n = math.ceil(math.log2(N)) # Кубіти для регістру y, який зберігає значення f(x)
+    m = 2 * n + 3 # Кубіти для регістру x, який зберігає значення x
+
+    # Створюємо квантову схему з m + n кубітів та n класичних бітів
+    qc = QuantumCircuit(m + n, n)
+
+    # Ініціалізуємо регістр x у суперпозицію за допомогою гейтів Адамара
+    for i in range(m):
+        qc.h(i)
+
+    # Застосовуємо функцію f(x) = a^x mod N до регістру y за допомогою гейтів U_f
+    for i in range(n):
+        qc.append(U_f(a, N, n, m), [i + m] + list(range(m)))
+
+    # Застосовуємо обернене квантове перетворення Фур'є до регістру x за допомогою гейтів QFT_dg
+    qc.append(QFT_dg(m), range(m))
+
+    # Вимірюємо регістр x і зберігаємо результати у класичних бітах
+    qc.measure(range(m), range(n))
+
+    # Виконуємо схему на симуляторі Aer і отримуємо результати
+    backend = Aer.get_backend('qasm_simulator')
+    shots = 2048 # Кількість запусків схеми
+    results = execute(qc, backend, shots=shots).result()
+    counts = results.get_counts()
+
+    # Побудова графіка результатів
+    plot_histogram(counts)
+
+    # Знаходимо найчастіше спостережуване значення x і обчислюємо його дробове наближення s/r
+    max_count = 0 # Максимальна кількість спостережень
+    max_x = 0 # Значення x, яке має максимальну кількість спостережень
+    for x in counts:
+        if counts[x] > max_count:
+            max_count = counts[x]
+            max_x = int(x, 2) # Перетворюємо x з двійкового у десяткове представлення
+
+    # Використовуємо наближення найближчого дробу для знаходження r
+    r = 0 # Період функції f(x)
+    s = max_x # Значення s/r
+    for k in range(1, shots):
+        # Обчислюємо наближення найближчого дробу k * s / shots
+        frac = fractions.Fraction(k * s, shots).limit_denominator(N)
+        # Перевіряємо, чи є це можливим значенням r
+        if frac.denominator > 1 and pow(a, frac.denominator, N) == 1:
+            r = frac.denominator
+            break
+
+    # Повертаємо значення r
+    return r
+
+# Функція для створення гейта U_f, який застосовує функцію f(x) = a^x mod N до регістру y
+def U_f(a, N, n, m):
+    # Створюємо порожню квантову схему з n + m кубітів
+    U_f = QuantumCircuit(n + m)
+
+    # Реалізуємо функцію f(x) за допомогою гейтів CROT
+    for i in range(n):
+        U_f.append(CROT(a, N, n, i), [i] + list(range(n, n + m)))
+
+    # Повертаємо гейт U_f
+    U_f = U_f.to_gate()
+    U_f.name = "U_f"
+    return U_f
+
+# Функція для створення гейта CROT, який застосовує обернений гейт ROT до регістру y,
+# якщо кубіт у регістрі x має значення 1
+def CROT(a, N, n, i):
+    # Створюємо порожню квантову схему з n + 1 кубітами
+    CROT = QuantumCircuit(n + 1)
+
+    # Реалізуємо гейт CROT за допомогою гейтів CNOT та ROT
+    CROT.cnot(0, i + 1)
+    CROT.append(ROT(a, N, n).control(), [0] + list(range(1, n + 1)))
+    CROT.cnot(0, i + 1)
+
+    # Повертаємо гейт CROT
+    CROT = CROT.to_gate()
+    CROT.name = "CROT"
+    return CROT
+
+# Функція для створення гейта ROT, який застосовує обернений гейт QFT до регістру y,
+# підносить його до степеня a та застосовує звичайний гейт QFT
+def ROT(a, N, n):
+    # Створюємо порожню квантову схему з n кубітами
+    ROT = QuantumCircuit(n)
+
+    # Реалізуємо гейт ROT за допомогою гейтів QFT та QFT_dg
+    ROT.append(QFT_dg(n), range(n))
+    for i in range(n):
+        ROT.u1(2 * math.pi * a / N * pow(2, i), i)
+    ROT.append(QFT(n), range(n))
+
+    # Повертаємо гейт ROT
+    ROT = ROT.to_gate()
+    ROT.name = "ROT"
+    return ROT
+
+# Функція для створення гейта QFT, який? 
